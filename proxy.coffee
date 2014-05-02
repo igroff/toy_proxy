@@ -25,7 +25,7 @@ urlBlocks = [
 shouldIProxy = (url) ->
   doNotProxy = false
   _.forEach urlBlocks, (value, index, collection) ->
-    doNotProxy = value(req.url) is BLOCK
+    doNotProxy = value(url) is BLOCK
     # if we ge one hit that says 'do not proxy' we're done
     false if doNotProxy
   return not doNotProxy
@@ -33,26 +33,23 @@ shouldIProxy = (url) ->
 
 
 proxy = httpProxy.createProxyServer()
+
 proxy.on 'error', (error, req, res) ->
   log.error "error while requesting #{req.url.split('?')[0]} -> #{error}"
-server = http.createServer (req, res) ->
-  doNotProxy = false
-  _.forEach urlBlocks, (value, index, collection) ->
-    doNotProxy = value(req.url) is BLOCK
-    # if we ge one hit that says 'do not proxy' we're done
-    false if doNotProxy
 
-  if doNotProxy
+server = http.createServer (req, res) ->
+  if shouldIProxy(req.url)
+    log.info "requesting #{req.url.split('?')[0]}"
+    proxy.web(req, res, { target: req.url })
+  else
     log.info "skipping blocked url: #{req.url}"
     res.writeHead "200"
     res.end ""
-  else
-    log.info "requesting #{req.url.split('?')[0]}"
-    proxy.web(req, res, { target: req.url })
 
 # handle an secure connection request, we're just hooking the
 # client up to the thing that they've requested
 server.on 'connect', (req, clientSocket, head) ->
+  return if not shouldIProxy(req.url)
   log.info "secure connection to: #{req.url}"
   # URL is in the form 'hostname:port'
   parts = req.url.split(':', 2)
