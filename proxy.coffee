@@ -11,21 +11,14 @@ _         = require 'lodash'
 url       = require 'url'
 log       = require 'simplog'
 
+config    = require 'config.coffee'
 
-DO_NOT_BLOCK = "NO_BLOCK"
-BLOCK = "BLOCK"
-urlBlocks = [
-  (url) ->
-    if url.indexOf("ads2") is -1
-      return DO_NOT_BLOCK
-    else
-      return BLOCK
-]
-  
+
+
 shouldIProxy = (url) ->
   doNotProxy = false
-  _.forEach urlBlocks, (value, index, collection) ->
-    doNotProxy = value(url) is BLOCK
+  _.forEach config.blockExpressions, (value, index, collection) ->
+    doNotProxy = value.test(url)
     # if we ge one hit that says 'do not proxy' we're done
     false if doNotProxy
   return not doNotProxy
