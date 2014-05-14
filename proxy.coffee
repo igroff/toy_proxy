@@ -24,6 +24,8 @@ shouldIProxy = (url) ->
   return not doNotProxy
 
 
+process.on 'uncaughtException', (err) ->
+    log.error err
 
 proxy = httpProxy.createProxyServer()
 
