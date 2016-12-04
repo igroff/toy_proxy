@@ -2,16 +2,18 @@
   "name": "proxy",
   "version": "0.0.0",
   "description": "ERROR: No README.md file found!",
-  "main": "index.js",
+  "main": "proxy.coffee",
   "scripts": {
+    "start": "./proxy.coffee",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": "",
   "author": "",
   "license": "BSD",
   "dependencies": {
+    "coffee-script": "1.11.1",
     "http-proxy": "~1.1.2",
-    "simplog": "0.0.4",
-    "lodash": "~2.4.1"
+    "lodash": "~2.4.1",
+    "simplog": "0.0.4"
   }
 }

@@ -11,7 +11,7 @@ _         = require 'lodash'
 url       = require 'url'
 log       = require 'simplog'
 
-config    = require 'config.coffee'
+config    = require './config.coffee'
 
 
 
