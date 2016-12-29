@@ -1,4 +1,4 @@
-#! /usr/bin/env coffee
+#! /usr/bin/env ./node_modules/.bin/coffee
 # vim: ft=coffee
 
 httpProxy = require "http-proxy"
@@ -13,7 +13,11 @@ log       = require 'simplog'
 
 config    = require './config.coffee'
 
+logFilePath = process.env.LOG_FILE_NAME || './proxy.log'
+urlLogStream = fs.createWriteStream logFilePath
 
+logUrl = (msg) ->
+  urlLogStream.write("#{msg}\n")
 
 shouldIProxy = (url) ->
   doNotProxy = false
@@ -35,6 +39,7 @@ proxy.on 'error', (error, req, res) ->
 server = http.createServer (req, res) ->
   if shouldIProxy(req.url)
     log.info "#{req.method} #{req.url}"
+    logUrl req.url
     proxy.web(req, res, { target: req.url })
   else
     log.info "skipping blocked url: #{req.url}"
@@ -56,4 +61,10 @@ server.on 'connect', (req, clientSocket, head) ->
     clientSocket.pipe(destServerConnection)
     destServerConnection.pipe(clientSocket)
 
-server.listen(1212)
+process.on 'SIGHUP', () ->
+  urlLogStream.end()
+  urlLogStream = fs.createWriteStream logFilePath
+
+port = process.env.PORT || 1212
+log.info "starting proxy on port #{port}"
+server.listen(port)
