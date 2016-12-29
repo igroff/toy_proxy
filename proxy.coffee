@@ -34,7 +34,7 @@ proxy.on 'error', (error, req, res) ->
 
 server = http.createServer (req, res) ->
   if shouldIProxy(req.url)
-    log.info "requesting #{req.url.split('?')[0]}"
+    log.info "#{req.method} #{req.url}"
     proxy.web(req, res, { target: req.url })
   else
     log.info "skipping blocked url: #{req.url}"
