@@ -68,3 +68,7 @@ process.on 'SIGHUP', () ->
 port = process.env.PORT || 1212
 log.info "starting proxy on port #{port}"
 server.listen(port)
+try
+  fs.writeFileSync("/tmp/toy_proxy_#{port}.pid", "#{process.pid}")
+catch e
+  log.error "failed writing pid file /tmp/toy_roxy_%s.pid\n%s", port, e
