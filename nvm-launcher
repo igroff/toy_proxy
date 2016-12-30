@@ -1,0 +1,12 @@
+#! /usr/bin/env bash
+# vi:ft=sh
+set -x
+MY_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+ME=$(whoami)
+export NVM_DIR="/home/${ME}/.nvm"
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+set +x # dont want to see this
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+set -x
+cd ${MY_DIR}
+exec npm start
