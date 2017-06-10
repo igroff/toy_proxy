@@ -1,17 +1,17 @@
 #! /usr/bin/env ./node_modules/.bin/coffee
 # vim: ft=coffee
 
-httpProxy = require "http-proxy"
-http      = require 'http'
-https     = require 'https'
 path      = require 'path'
-net       = require 'net'
 fs        = require 'fs'
 _         = require 'lodash'
-url       = require 'url'
 log       = require 'simplog'
+cluster   = require 'cluster'
 
+worker    = require './worker.coffee'
 config    = require './config.coffee'
+
+stillRunning = true
+numCpus = require('os').cpus().length
 
 logFilePath = process.env.LOG_FILE_NAME || './proxy.log'
 urlLogStream = fs.createWriteStream logFilePath
@@ -19,56 +19,51 @@ urlLogStream = fs.createWriteStream logFilePath
 logUrl = (msg) ->
   urlLogStream.write("#{msg}\n")
 
-shouldIProxy = (url) ->
-  doNotProxy = false
-  _.forEach config.blockExpressions, (value, index, collection) ->
-    doNotProxy = value.test(url)
-    # if we ge one hit that says 'do not proxy' we're done
-    false if doNotProxy
-  return not doNotProxy
-
 
 process.on 'uncaughtException', (err) ->
     log.error err
-
-proxy = httpProxy.createProxyServer()
-
-proxy.on 'error', (error, req, res) ->
-  log.error "error while requesting #{req.url.split('?')[0]} -> #{error}"
-
-server = http.createServer (req, res) ->
-  if shouldIProxy(req.url)
-    log.info "#{req.method} #{req.url}"
-    logUrl req.url
-    proxy.web(req, res, { target: req.url })
-  else
-    log.info "skipping blocked url: #{req.url}"
-    res.writeHead "200"
-    res.end ""
-
-# handle an secure connection request, we're just hooking the
-# client up to the thing that they've requested
-server.on 'connect', (req, clientSocket, head) ->
-  return if not shouldIProxy(req.url)
-  log.info "secure connection to: #{req.url}"
-  # URL is in the form 'hostname:port'
-  parts = req.url.split(':', 2)
-  # open a TCP connection to the remote host
-  destServerConnection = net.connect parts[1], parts[0], () ->
-    # respond to the client that the connection was made
-    clientSocket.write("HTTP/1.1 200 OK\r\n\r\n")
-    # create a tunnel between the two hosts
-    clientSocket.pipe(destServerConnection)
-    destServerConnection.pipe(clientSocket)
 
 process.on 'SIGHUP', () ->
   urlLogStream.end()
   urlLogStream = fs.createWriteStream logFilePath
 
+
 port = process.env.PORT || 1212
-log.info "starting proxy on port #{port}"
-server.listen(port)
-try
-  fs.writeFileSync("/tmp/toy_proxy_#{port}.pid", "#{process.pid}")
-catch e
-  log.error "failed writing pid file /tmp/toy_roxy_%s.pid\n%s", port, e
+
+if cluster.isMaster
+  shutdownRoutine = () ->
+    log.info "starting shutdown"
+    urlLogStream.end()
+    stillRunning = false
+    exitWhenWorkersDone = () ->
+      log.info "shutting down proxy"
+      process.exit
+    cluster.on 'exit', _.after(numCpus, exitWhenWorkersDone)
+    _.each cluster.workers, (worker) -> worker.send('shutdown')
+    
+  process.on(signal, shutdownRoutine) for signal in ['SIGTERM', 'SIGINT']
+
+  hookWorkerShutdown = (worker) ->
+    worker.on 'exit', (code, signal) ->
+      log.info "worker #{process.pid} exiting"
+      log.info "worker #{process.pid} shutting down" unless stillRunning
+
+  log.info "starting proxy on port #{port}"
+  log.info "starting #{numCpus} workers"
+  hookWorkerShutdown(cluster.fork()) for [1..numCpus]
+
+  # handle worker shutdowns by restarting them if the proxy is supposed to
+  # be stillRunning
+  cluster.on 'exit', (worker, code, signal) ->
+    if stillRunning
+      log.info "restarting worker after unexpected stop"
+      workerProcess = cluster.fork()
+      hookWorkerShutdown workerProcess
+  try
+    fs.writeFileSync("/tmp/toy_proxy_#{port}.pid", "#{process.pid}")
+  catch e
+    log.error "failed writing pid file /tmp/toy_roxy_%s.pid\n%s", port, e
+else
+  worker.start(logUrl, port)
+    
+
