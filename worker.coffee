@@ -10,6 +10,7 @@ fs        = require 'fs'
 _         = require 'lodash'
 url       = require 'url'
 log       = require 'simplog'
+cluster   = require 'cluster'
 
 config    = require './config.coffee'
 
