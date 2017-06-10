@@ -16,17 +16,8 @@ numCpus = require('os').cpus().length
 logFilePath = process.env.LOG_FILE_NAME || './proxy.log'
 urlLogStream = fs.createWriteStream logFilePath
 
-logUrl = (msg) ->
-  urlLogStream.write("#{msg}\n")
-
-
 process.on 'uncaughtException', (err) ->
     log.error err
-
-process.on 'SIGHUP', () ->
-  urlLogStream.end()
-  urlLogStream = fs.createWriteStream logFilePath
-
 
 port = process.env.PORT || 1212
 
@@ -42,6 +33,14 @@ if cluster.isMaster
     _.each cluster.workers, (worker) -> worker.send('shutdown')
     
   process.on(signal, shutdownRoutine) for signal in ['SIGTERM', 'SIGINT']
+
+  process.on 'SIGHUP', () ->
+    urlLogStream.end()
+    urlLogStream = fs.createWriteStream logFilePath
+
+  cluster.on 'message', (messageObject) ->
+    if messageObject.type is "url"
+      urlLogStream.write("#{messageObject.url}\n")
 
   hookWorkerShutdown = (worker) ->
     worker.on 'exit', (code, signal) ->
@@ -59,11 +58,12 @@ if cluster.isMaster
       log.info "restarting worker after unexpected stop"
       workerProcess = cluster.fork()
       hookWorkerShutdown workerProcess
+
   try
     fs.writeFileSync("/tmp/toy_proxy_#{port}.pid", "#{process.pid}")
   catch e
     log.error "failed writing pid file /tmp/toy_roxy_%s.pid\n%s", port, e
 else
-  worker.start(logUrl, port)
+  worker.start(port)
     
 

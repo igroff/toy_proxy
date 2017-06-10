@@ -13,8 +13,7 @@ log       = require 'simplog'
 
 config    = require './config.coffee'
 
-start = (functionToLogUrl, port) ->
-  logUrl = functionToLogUrl
+start = (port) ->
   shouldIProxy = (url) ->
     doNotProxy = false
     _.forEach config.blockExpressions, (value, index, collection) ->
@@ -31,7 +30,7 @@ start = (functionToLogUrl, port) ->
   server = http.createServer (req, res) ->
     if shouldIProxy(req.url)
       log.info "#{req.method} #{req.url}"
-      logUrl req.url
+      cluster.worker.send({type:'url', 'url':req.url})
       proxy.web(req, res, { target: req.url })
     else
       log.info "skipping blocked url: #{req.url}"
